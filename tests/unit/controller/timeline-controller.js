@@ -1,4 +1,4 @@
-import TimelineController from '../../../src/controller/timeline-controller';
+import { TimelineController } from '../../../src/controller/timeline-controller';
 import Hls from '../../../src/hls';
 
 describe('TimelineController', function () {

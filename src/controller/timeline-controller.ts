@@ -27,7 +27,7 @@ type NonNativeCaptionsTrack = {
   subtitleTrack?: MediaPlaylist
 };
 
-class TimelineController extends EventHandler {
+export class TimelineController extends EventHandler {
   private media: HTMLMediaElement | null = null;
   private config: HlsConfig;
   private enabled: boolean = true;
@@ -492,5 +492,3 @@ function newVTTCCs (): VTTCCs {
     }
   };
 }
-
-export default TimelineController;
