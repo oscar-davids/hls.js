@@ -1,12 +1,13 @@
 import VTTParser from './vttparser';
 import { utf8ArrayToStr } from '../demux/id3';
+import type { VTTCCs } from '../types/vtt';
 
 // String.prototype.startsWith is not supported in IE11
-const startsWith = function (inputString, searchString, position) {
-  return inputString.substr(position || 0, searchString.length) === searchString;
+const startsWith = function (inputString: string, searchString: string, position: number = 0) {
+  return inputString.substr(position, searchString.length) === searchString;
 };
 
-const cueString2millis = function (timeString) {
+const cueString2millis = function (timeString: string) {
   let ts = parseInt(timeString.substr(-3));
   let secs = parseInt(timeString.substr(-6, 2));
   let mins = parseInt(timeString.substr(-9, 2));
@@ -24,7 +25,7 @@ const cueString2millis = function (timeString) {
 };
 
 // From https://github.com/darkskyapp/string-hash
-const hash = function (text) {
+const hash = function (text: string) {
   let hash = 5381;
   let i = text.length;
   while (i) {
@@ -34,7 +35,7 @@ const hash = function (text) {
   return (hash >>> 0).toString();
 };
 
-const calculateOffset = function (vttCCs, cc, presentationTime) {
+const calculateOffset = function (vttCCs: VTTCCs, cc, presentationTime) {
   let currCC = vttCCs[cc];
   let prevCC = vttCCs[currCC.prevCC];
 
@@ -58,8 +59,11 @@ const calculateOffset = function (vttCCs, cc, presentationTime) {
   vttCCs.presentationOffset = presentationTime;
 };
 
-const WebVTTParser = {
-  parse: function (vttByteArray, syncPTS, vttCCs, cc, callBack, errorCallBack) {
+// TODO(typescript-vttparser): When VTT parser is typed, errorCallback needs to get the proper typing here.
+export function parseWebVTT (
+    vttByteArray: ArrayBuffer, syncPTS: number, vttCCs: VTTCCs,
+    cc: number, callBack: (cues: VTTCue[]) => void, errorCallBack: (arg0: any) => void
+) {
     // Convert byteArray into string, replacing any somewhat exotic linefeeds with "\n", then split on that character.
     let re = /\r\n|\n\r|\n|\r/g;
     // Uint8Array.prototype.reduce is not implemented in IE11
@@ -69,7 +73,7 @@ const WebVTTParser = {
     let mpegTs = 0;
     let localTime = 0;
     let presentationTime = 0;
-    let cues = [];
+    let cues: VTTCue[] = [];
     let parsingError;
     let inHeader = true;
     let timestampMap = false;
@@ -78,14 +82,14 @@ const WebVTTParser = {
     // Create parser object using VTTCue with TextTrackCue fallback on certain browsers.
     let parser = new VTTParser();
 
-    parser.oncue = function (cue) {
+    parser.oncue = function (cue: VTTCue) {
       // Adjust cue timing; clamp cues to start no earlier than - and drop cues that don't end after - 0 on timeline.
       let currCC = vttCCs[cc];
       let cueOffset = vttCCs.ccOffset;
 
       // Update offsets for new discontinuities
       if (currCC && currCC.new) {
-        if (localTime !== undefined) {
+        if (localTime !== void 0) {
           // When local time is provided, offset = discontinuity start time - local time
           cueOffset = vttCCs.ccOffset = currCC.start;
         } else {
@@ -168,7 +172,4 @@ const WebVTTParser = {
     });
 
     parser.flush();
-  }
-};
-
-export default WebVTTParser;
+}

@@ -2,13 +2,15 @@ import Event from '../events';
 import EventHandler from '../event-handler';
 import Cea608Parser, { CaptionScreen } from '../utils/cea-608-parser';
 import OutputFilter from '../utils/output-filter';
-import WebVTTParser from '../utils/webvtt-parser';
+import { parseWebVTT } from '../utils/webvtt-parser';
 import { logger } from '../utils/logger';
 import { sendAddTrackEvent, clearCurrentCues } from '../utils/texttrack-utils';
-import Fragment from '../loader/fragment';
-import { HlsConfig } from '../config';
-import { CuesInterface } from '../utils/cues';
-import { MediaPlaylist } from '../types/media-playlist';
+
+import type Fragment from '../loader/fragment';
+import type { HlsConfig } from '../config';
+import type { CuesInterface } from '../utils/cues';
+import type { MediaPlaylist } from '../types/media-playlist';
+import type { VTTCCs } from '../types/vtt';
 
 type TrackProperties = {
   label: string,
@@ -23,16 +25,6 @@ type NonNativeCaptionsTrack = {
   default: boolean,
   closedCaptions?: MediaPlaylist,
   subtitleTrack?: MediaPlaylist
-};
-
-type VTTCCs = {
-  ccOffset: number,
-  presentationOffset: number,
-  [key: number]: {
-    start: number,
-    prevCC: number,
-    new: boolean
-  }
 };
 
 class TimelineController extends EventHandler {
@@ -382,7 +374,7 @@ class TimelineController extends EventHandler {
       this.prevCC = frag.cc;
     }
     // Parse the WebVTT file contents.
-    WebVTTParser.parse(payload, this.initPTS[frag.cc], vttCCs, frag.cc, (cues) => {
+    parseWebVTT(payload, this.initPTS[frag.cc], vttCCs, frag.cc, (cues) => {
       if (this.config.renderTextTracksNatively) {
         const currentTrack = textTracks[frag.level];
         // WebVTTParser.parse is an async method and if the currently selected text track mode is set to "disabled"

@@ -1,4 +1,4 @@
-import Level from '../loader/level';
+import type Level from '../loader/level';
 
 export interface LoaderContext {
   // target URL

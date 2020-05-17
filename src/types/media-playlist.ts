@@ -1,4 +1,4 @@
-import AttrList from '../utils/attr-list';
+import type AttrList from '../utils/attr-list';
 
 export interface AudioGroup {
   id: string;
