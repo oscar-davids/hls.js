@@ -27,7 +27,7 @@ export default class Fragment {
   public programDateTime: number | null = null;
   public title: string | null = null;
   public tagList: Array<string[]> = [];
-
+  public daterange: string | null = null;
   // TODO: Move at least baseurl to constructor.
   // Currently we do a two-pass construction as use the Fragment class almost like a object for holding parsing state.
   // It may make more sense to just use a POJO to keep state during the parsing phase.

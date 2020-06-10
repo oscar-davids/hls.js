@@ -21,13 +21,14 @@ const MASTER_PLAYLIST_MEDIA_REGEX = /#EXT-X-MEDIA:(.*)/g;
 
 const LEVEL_PLAYLIST_REGEX_FAST = new RegExp([
   /#EXTINF:\s*(\d*(?:\.\d+)?)(?:,(.*)\s+)?/.source, // duration (#EXTINF:<duration>,<title>), group 1 => duration, group 2 => title
+  /|#EXT-X-DATERANGE:(.+)/.source, // segment's daterange (#EXT-X-DATERANGE: <>)
   /|(?!#)([\S+ ?]+)/.source, // segment URI, group 3 => the URI (note newline is not eaten)
   /|#EXT-X-BYTERANGE:*(.+)/.source, // next segment's byterange, group 4 => range spec (x@y)
   /|#EXT-X-PROGRAM-DATE-TIME:(.+)/.source, // next segment's program date/time group 5 => the datetime spec
   /|#.*/.source // All other non-segment oriented tags will match with all groups empty
 ].join(''), 'g');
 
-const LEVEL_PLAYLIST_REGEX_SLOW = /(?:(?:#(EXTM3U))|(?:#EXT-X-(PLAYLIST-TYPE):(.+))|(?:#EXT-X-(MEDIA-SEQUENCE): *(\d+))|(?:#EXT-X-(TARGETDURATION): *(\d+))|(?:#EXT-X-(KEY):(.+))|(?:#EXT-X-(START):(.+))|(?:#EXT-X-(ENDLIST))|(?:#EXT-X-(DISCONTINUITY-SEQ)UENCE:(\d+))|(?:#EXT-X-(DIS)CONTINUITY))|(?:#EXT-X-(VERSION):(\d+))|(?:#EXT-X-(MAP):(.+))|(?:(#)([^:]*):(.*))|(?:(#)(.*))(?:.*)\r?\n?/;
+const LEVEL_PLAYLIST_REGEX_SLOW = /(?:(?:#(EXTM3U))|(?:#EXT-X-(PLAYLIST-TYPE):(.+))|(?:#EXT-X-(MEDIA-SEQUENCE): *(\d+))|(?:#EXT-X-(TARGETDURATION): *(\d+))|(?:#EXT-X-(KEY):(.+))|(?:#EXT-X-(START):(.+))|(?:#EXT-X-(ENDLIST))|(?:#EXT-X-(DISCONTINUITY-SEQ)UENCE:(\d+))|(?:#EXT-X-(DIS)CONTINUITY))|(?:#EXT-X-(VERSION):(\d+))|(?:#EXT-X-(MAP):(.+))| (?:(#)([^:]*):(.*))|(?:(#)(.*))(?:.*)\r?\n?/;
 
 const MP4_REGEX_SUFFIX = /\.(mp4|m4s|m4v|m4a)$/i;
 
@@ -174,11 +175,10 @@ export default class M3U8Parser {
     let result: RegExpExecArray | RegExpMatchArray | null;
     let i: number;
     let levelkey: LevelKey | undefined;
-
+    let daterange: string | null = null;
     let firstPdtIndex = null;
 
     LEVEL_PLAYLIST_REGEX_FAST.lastIndex = 0;
-
     while ((result = LEVEL_PLAYLIST_REGEX_FAST.exec(string)) !== null) {
       const duration = result[1];
       if (duration) { // INF
@@ -187,7 +187,9 @@ export default class M3U8Parser {
         const title = (' ' + result[2]).slice(1);
         frag.title = title || null;
         frag.tagList.push(title ? [ 'INF', duration, title ] : [ 'INF', duration ]);
-      } else if (result[3]) { // url
+      } else if (result[3]){
+          daterange = result[3];
+      } else if (result[4]) { // url
         if (Number.isFinite(frag.duration)) {
           const sn = currentSN++;
           frag.type = type;
@@ -200,8 +202,10 @@ export default class M3U8Parser {
           frag.cc = discontinuityCounter;
           frag.urlId = levelUrlId;
           frag.baseurl = baseurl;
+          frag.daterange = daterange;
+
           // avoid sliced strings    https://github.com/video-dev/hls.js/issues/939
-          frag.relurl = (' ' + result[3]).slice(1);
+          frag.relurl = (' ' + result[4]).slice(1);
           assignProgramDateTime(frag, prevFrag);
 
           level.fragments.push(frag);
@@ -210,21 +214,22 @@ export default class M3U8Parser {
 
           frag = new Fragment();
         }
-      } else if (result[4]) { // X-BYTERANGE
-        const data = (' ' + result[4]).slice(1);
+      } else if (result[5]) { // X-BYTERANGE
+        const data = (' ' + result[5]).slice(1);
         if (prevFrag) {
           frag.setByteRange(data, prevFrag);
         } else {
           frag.setByteRange(data);
         }
-      } else if (result[5]) { // PROGRAM-DATE-TIME
+      } else if (result[6]) { // PROGRAM-DATE-TIME
         // avoid sliced strings    https://github.com/video-dev/hls.js/issues/939
-        frag.rawProgramDateTime = (' ' + result[5]).slice(1);
+        frag.rawProgramDateTime = (' ' + result[6]).slice(1);
         frag.tagList.push(['PROGRAM-DATE-TIME', frag.rawProgramDateTime]);
         if (firstPdtIndex === null) {
           firstPdtIndex = level.fragments.length;
         }
-      } else {
+      }
+      else {
         result = result[0].match(LEVEL_PLAYLIST_REGEX_SLOW);
         if (!result) {
           logger.warn('No matches on slow regex match for level playlist!');
@@ -335,7 +340,6 @@ export default class M3U8Parser {
     level.endSN = currentSN - 1;
     level.startCC = level.fragments[0] ? level.fragments[0].cc : 0;
     level.endCC = discontinuityCounter;
-
     if (!level.initSegment && level.fragments.length) {
       // this is a bit lurky but HLS really has no other way to tell us
       // if the fragments are TS or MP4, except if we download them :/
