@@ -1,16 +1,34 @@
-<script src="../dist/hls.js"></script>
-<!-- Or if you want a more recent canary version -->
-<!-- <script src="https://cdn.jsdelivr.net/npm/hls.js@canary"></script> -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>hls.js demo</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap-theme.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/1.3.3/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.2/ace.js"></script>
+  </head>
+<body>
 <div>
-<video id="video"  muted="muted" style="display: none"></video>
-<canvas id="canvas"></canvas>
+  <div class="col-md-8">
+    <label>Please input the URL of the media server and press enter...</label>
+    <input id="streamUrl" class="col-md-12 innerControls" type=text value=""/>
+  </div>
+  <video id="video"  muted="muted" style="display: none"></video>
+  <canvas id="canvas"></canvas>
 </div>
+<script src="../dist/hls.js"></script>
 <script>
 
 
   const sleep = (milliseconds) => {
     return new Promise(resolve => setTimeout(resolve, milliseconds))
   }
+
+  var video = document.getElementById('video');
 
   function drawImge(){
     var video = document.querySelector("#video");
@@ -66,68 +84,61 @@
       return {time, objects}
   }
 
-  var video = document.getElementById('video');
+  function playstream(streamurl) {
+    if (Hls.isSupported()) {
+      var hls = new Hls({
+        debug: false,
+      });
+
+      hls.loadSource(streamurl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+        video.play();
+      });
 
 
-  var videoSrc = 'http://192.168.2.200:7935/stream/test_classified.m3u8';
-  if (Hls.isSupported()) {
-    var hls = new Hls({
-      debug: false,
+     video.onplay = function() {
+      setTimeout(drawImge , 5);
+    };
+
+
+    hls.on(Hls.Events.FRAG_CHANGED, async function(event,data) {
+       // logger.log('now playing frag sequence number:' + data.frag.sn);
+
+       duration = data.frag.duration;
+       fragment = data.frag;
+
+       if(fragment.daterange == null) {
+             return;
+       };
+       result = getdetectobjects(fragment.daterange);
+
+       if (result === null) {
+            return;
+       }
+       var j;
+       prevtime = 0;
+
+       for(j = 0; j < result.length; j++){
+          objects_per_timestamp = result[j];
+          objectsdata = getobjectspertimestamp(objects_per_timestamp);
+          time = parseFloat(objectsdata.time);
+          await sleep( ( time - prevtime ) * 1000);
+
+          drawdetectedobjects(objectsdata.objects);
+          if (time < prevtime){
+              prevtime = 0;
+          } else{
+              prevtime = time;
+          }
+       }
+
+
     });
 
-    hls.loadSource(videoSrc);
-    hls.attachMedia(video);
-
-
-
-    hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
-      video.play();
-    });
-
-
-   video.onplay = function() {
-    setTimeout(drawImge , 0);
-  };
-
-
-  hls.on(Hls.Events.FRAG_CHANGED, async function(event,data) {
-     // logger.log('now playing frag sequence number:' + data.frag.sn);
-
-     duration = data.frag.duration;
-     fragment = data.frag;
-
-     if(fragment.daterange == null) {
-           return;
-     };
-     result = getdetectobjects(fragment.daterange);
-
-     if (result === null) {
-          return;
-     }
-     var j;
-     prevtime = 0;
-
-     for(j = 0; j < result.length; j++){
-        objects_per_timestamp = result[j];
-        objectsdata = getobjectspertimestamp(objects_per_timestamp);
-        time = parseFloat(objectsdata.time);
-        await sleep( ( time - prevtime ) * 1000);
-
-        drawdetectedobjects(objectsdata.objects);
-        if (time < prevtime){
-            prevtime = 0;
-        } else{
-            prevtime = time;
-        }
-     }
-
-
-  });
-
-  }
-
-
-  // hls.js is not supported on platforms that do not have Media Source
+    }
+      // hls.js is not supported on platforms that do not have Media Source
   // Extensions (MSE) enabled.
   //
   // When the browser has built-in HLS support (check using `canPlayType`),
@@ -141,9 +152,35 @@
   // event will be emitted; the last video event that can be reliably
   // listened-for when the URL is not on the white-list is 'loadedmetadata'.
   else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = videoSrc;
+    video.src = streamurl;
     video.addEventListener('loadedmetadata', function() {
       video.play();
     });
   }
+
+  }
+
+  var streamUrlInput = document.getElementById("streamUrl");
+
+  streamUrlInput.addEventListener("keyup", function(event) {
+    // Number 13 is the "Enter" key on the keyboard
+    if (event.keyCode === 13) {
+      // Cancel the default action, if needed
+      event.preventDefault();
+      // Trigger the button element with a click
+      streamurl = this.value;
+
+      playstream(streamurl);
+
+    }
+  });
+
+
+
+
+
+
 </script>
+</body>
+</html>
+
